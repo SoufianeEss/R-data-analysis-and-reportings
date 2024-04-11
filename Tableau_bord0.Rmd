@@ -1,0 +1,449 @@
+---
+title: "RAM scrap monitor"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: fill
+---
+
+```{r setup, include=FALSE}
+options(digits=2)
+library(flexdashboard)
+library(plotly)
+library(varhandle)
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+```
+
+General info {data-icon="fas fa-plane-departure"}
+=============================
+
+Row {data-width=150}
+--------------------------------------
+### Total scrap generated in all areas in Tonnes per day
+
+```{r}
+
+library(openxlsx)
+scrap.ramheb<-read.xlsx("Dechets hebdomadaire par zone.xlsx")
+
+data3<-scrap.ramheb
+data3$Poids<-as.numeric(data3$Poids)
+
+quant<-sum(data3$Poids)/7
+valueBox(round(quant,digits=2), icon = "fa fa-recycle")
+
+
+```
+
+### Total annual scrap in Tonnes
+
+```{r}
+
+quant1<-sum(data3$Poids)*52
+valueBox(round(quant1,2), icon = "fas fa-trash-alt",color="seagreen")
+```
+
+### Ratio of dangerous scrap in technical zone
+
+```{r}
+zonetech<-read.csv("zonetech.csv",sep=";")
+data0<-zonetech
+
+datas<-subset(data0,data0$Type_scrap=="D",c(Type_scrap,POIDS_Tonnes))
+datas1<-subset(data0,data0$Type_scrap=="ND",c(Type_scrap,POIDS_Tonnes))
+qtyD<-sum(datas$POIDS_Tonnes)
+qtyND<-sum(datas1$POIDS_Tonnes)
+ratio<-qtyD/qtyND
+valueBox(round(ratio,2), icon = "fas fa-fire",color="red")
+```
+
+
+Column
+--------------------------------------
+### Time series of scrap in ZIRAM
+> Below you'll find presented the time serie of scap in ZIRAM in 2018; That year was considered as the most recent year which can be judged as normal in terms of activity:
+    
+```{r}
+
+scrap.ram<-read.csv("scrap.csv",sep=";")
+
+data3<-scrap.ram
+data3$Scrap.Date<-as.Date(data3$Scrap.Date,"%d/%m/%Y")
+
+data4<-data3 %>%
+        group_by(Scrap.Date) %>%
+        summarise(somme=sum(Qty),na.rm=TRUE) %>%
+        select(Scrap.Date,somme)
+g<-ggplot(data4, aes(x = Scrap.Date, y = somme)) + 
+        geom_line(color="steelblue")+xlab("Date")+ylab("Quantity of consummable scrap in technical area RAM")+ggtitle("Time serie of consummable scrap in ZIRAM in 2018")
+ggplotly(g)
+
+```
+
+Atelier Roues/Freins {data-icon="fas fa-search"}
+===========================
+
+Row
+--------------------------------------
+
+### Search for scrap in workshop Roues/Freins
+
+> Scrap generated in Workshop Roues/Freins
+
+There are scrap that aren't mentionned on this dashbooard because they are generated in small amount per period like : Toboggan - Gilet de sauvetage - Vitres (2-3 per month).
+
+Important info about this workshop: ATR tire is generated 10 times per month (destined to be thrown away)- Disques freins et patins freins aren't destined to be thrown away,some of them are reutilizable. 
+
+```{r}
+scrap_workshop<-read.xlsx("Atelier1_1.xlsx")
+Tonneperyear<-c(16,0.4,0.12,0.15,0.1,1.2,0.48,4.8,4.8,3.6,2.4,2.5,4,0.6,0.26,0.3,0.05,6.5,13,0.14,0.06,0.8,0.06 ,0.25,0,0.0325,1.125,0.6,0.6,2.4,0.1,3)
+scrap_workshop1<-scrap_workshop[,1:4]
+scrap_workshop2<-cbind(scrap_workshop1,Tonneperyear)
+scrap_workshop4<-scrap_workshop1[,1:2]
+scrap_workshop5<-cbind(scrap_workshop4,Tonneperyear)
+
+library(DT)
+datatable(scrap_workshop5, options = list(pageLength =5))
+
+```
+
+column
+--------------------------------------
+
+### Top generated scrap annually in Workshop Roues/Freins 
+
+```{r}
+data7<-scrap_workshop5 %>%
+        group_by(DESIGNATION) %>%
+        summarise(somme=sum(Tonneperyear),na.rm=TRUE) %>%
+        select(DESIGNATION,somme)
+data6pic<-subset(data7,data7$somme>=2)
+data6pic <- data6pic[order(data6pic$somme, decreasing=TRUE), ]
+data6pic$cumulative <- cumsum(data6pic$somme)
+data6pic$DESIGNATION <- factor(data6pic$DESIGNATION, levels=data6pic$DESIGNATION)
+g<-ggplot(data6pic, aes(x=DESIGNATION)) 
+g1<-g+geom_bar(aes(y=somme),fill= "blue",stat="identity") +
+geom_point(aes(y=cumulative), color = rgb(0, 1, 0), pch=16, size=1) +
+geom_path(aes(y=cumulative, group=1), colour="slateblue1", lty=3, size=0.9) +
+theme(axis.text.x = element_text(angle=0, vjust=0.6)) +
+labs(title = "Pareto Plot of top generated scrap annually in Workshop Roues/freins", subtitle = "RAM", x = 'DESIGNATION', y =
+'Weights in Tonnes')
+ggplotly(g1)
+```   
+
+column
+--------------------------------------
+### Ratio of scrap generated in Wshop1 compared to the others 
+
+```{r}
+total<-sum(as.numeric(scrap.ramheb$Poids))*52+sum(as.numeric(data7$somme))
+ratio_roue<-sum(data7$somme)/total
+
+valueBox(round(ratio_roue,2), icon = "fas fa-cogs",color="gray")
+```
+
+### Scrap generated in Wshop1 annually in Tonnes
+
+```{r}
+
+total<-sum(scrap_workshop5$Tonneperyear)
+
+
+valueBox(round(total,digits=2), icon = "fas fa-calculator",color="orange")
+```
+
+Scrap in PISTE {data-icon="fas fa-search"}
+===========================
+Row
+--------------------------------------
+### Ratio of generated scrap in PISTE compared to the total
+
+```{r}
+scrap_piste<-subset(scrap.ramheb,Zone=="Piste")
+total_piste<-sum(as.numeric(scrap_piste$Poids))
+total<-sum(as.numeric(scrap.ramheb$Poids))+sum(as.numeric(data7$somme))*1/52
+ratio_piste<-total_piste/total
+valueBox(round(ratio_piste,digits=2), icon = "fas fa-road")
+```
+
+### Percentage of dangerous scrap in PISTE
+
+```{r}
+scrap_piste<-subset(scrap.ramheb,Zone=="Piste")
+Percentage <-(1.2+0.2)/total_piste
+valueBox(round(Percentage,digits=2), icon = "fas fa-fire",color="red")
+```
+
+### Total scrap generated in PISTE weekly in Tonnes
+
+```{r}
+valueBox(round(total_piste,2), icon = "fas fa-calculator",color="gray")
+```
+
+### Estimated frequence of collecting scrap in PISTE in times/weeks
+
+```{r}
+valueBox(1/2, icon = "fas fa-truck",color="green")
+```
+
+Row {data-height=150}
+--------------------------------------
+### Weekly scrap in Piste 
+
+```{r}
+scrap_piste <- scrap_piste[order(scrap_piste$Poids, decreasing=TRUE), ]
+scrap_piste$cumulative <- cumsum(scrap_piste$Poids)
+scrap_piste$Déchets <- factor(scrap_piste$Déchets, levels=scrap_piste$Déchets)
+g<-ggplot(scrap_piste, aes(x=Déchets)) 
+g1<-g+geom_bar(aes(y=Poids),fill= "blue",stat="identity") +
+geom_point(aes(y=cumulative), color = rgb(0, 1, 0), pch=16, size=1) +
+geom_path(aes(y=cumulative, group=1), colour="slateblue1", lty=3, size=0.9) +
+theme(axis.text.x = element_text(angle=4, vjust=0.6)) +
+labs(title = "Pareto Plot of top generated scrap weekly in Workshop Piste", subtitle = "RAM", x = 'Déchets', y =
+'Weights in Tonnes')
+ggplotly(g1)
+
+```
+
+### Search for scrap
+
+```{r}
+library(DT)
+datatable(scrap_piste, options = list(pageLength =5))
+```
+
+
+Atelier batteries-fours-CE {data-icon="fas fa-search"}
+===========================
+Row
+--------------------------------------
+### Ratio of generated scrap in Atelier batteries. fours et chauffe-eaux compared to the total
+
+```{r}
+scrap_bat<-subset(scrap.ramheb,Zone=="Atelier batteries. fours et chauffe-eaux")
+scrap_bat$Poids<-as.numeric(scrap_bat$Poids)
+total_bat<-sum(as.numeric(scrap_bat$Poids))
+total<-sum(as.numeric(scrap.ramheb$Poids))+sum(as.numeric(data7$somme))*1/52
+ratio_bat<-total_bat/total
+valueBox(round(ratio_bat,2), icon = "fas fa-car-battery")
+```
+
+### Percentage of dangerous scrap in Atelier batteries. fours et chauffe-eaux
+
+```{r}
+scrap_bat<-subset(scrap.ramheb,Zone=="Atelier batteries. fours et chauffe-eaux")
+Percentage <-(0.012+0.0165+0.001+0.0210+0.002)/total_bat
+
+valueBox(round(Percentage,2), icon = "fas fa-fire",color="red")
+```
+
+### Total scrap generated in Atelier batteries. fours et chauffe-eaux weekly in Tonnes
+
+```{r}
+valueBox(round(total_bat,2), icon = "fas fa-calculator",color="gray")
+```
+
+
+Row
+--------------------------------------
+
+
+### Weekly scrap in Atelier batteries. fours et chauffe-eaux
+
+```{r}
+scrap_bat <- scrap_bat[order(scrap_bat$Poids, decreasing=TRUE), ]
+scrap_bat$cumulative <- cumsum(scrap_bat$Poids)
+scrap_bat$Déchets <- factor(scrap_bat$Déchets, levels=scrap_bat$Déchets)
+g<-ggplot(scrap_bat, aes(x=Déchets)) 
+g1<-g+geom_bar(aes(y=Poids),fill= "blue",stat="identity") +
+geom_point(aes(y=cumulative), color = rgb(0, 1, 0), pch=16, size=1) +
+geom_path(aes(y=cumulative, group=1), colour="slateblue1", lty=3, size=0.9) +
+theme(axis.text.x = element_text(angle=4, vjust=0.6)) +
+labs(title = "Weekly scrap in Atelier batteries. fours et chauffe-eaux", subtitle = "RAM", x = 'Déchets', y =
+'Weights in Tonnes')
+ggplotly(g1)
+```
+
+### search for scrap
+
+>Remarks:
+
+There are other types of scrap that aren't mentionned on this dashboard like: Frame boiler,Water boiler and Réservoires but they represent a minority compared to the others in terms of weight per period.
+
+```{r}
+library(DT)
+datatable(scrap_bat, options = list(pageLength =5))
+```
+
+Atelier Cabine {data-icon="fas fa-search"}
+===========================
+Row
+--------------------------------------
+### Ratio of generated scrap in Atelier Cabine compared to the total
+
+```{r}
+scrap_cabine<-subset(scrap.ramheb,Zone=="Atelier Cabine")
+total_cabine<-sum(as.numeric(scrap_cabine$Poids))
+total<-sum(as.numeric(scrap.ramheb$Poids))+sum(as.numeric(data7$somme))*1/52
+ratio_cabine<-total_cabine/total
+valueBox(round(ratio_cabine,2), icon = "fas fa-seat")
+```
+
+### Percentage of dangerous scrap in Atelier Cabine
+
+```{r}
+scrap_cabine<-subset(scrap.ramheb,Zone=="Atelier Cabine")
+Percentage <-(0)/total_cabine
+valueBox(round(Percentage,2), icon = "fas fa-fire",color="red")
+```
+
+### Total scrap generated in Atelier cabine weekly in Tonnes
+
+```{r}
+valueBox(round(total_cabine,2), icon = "fas fa-calculator",color="green")
+```
+
+
+Row
+--------------------------------------
+### Weekly scrap in Atelier Cabine
+
+```{r}
+scrap_cabine <- scrap_cabine[order(scrap_cabine$Poids, decreasing=TRUE), ]
+scrap_cabine$cumulative <- cumsum(scrap_cabine$Poids)
+scrap_cabine$Déchets <- factor(scrap_cabine$Déchets, levels=scrap_cabine$Déchets)
+g<-ggplot(scrap_cabine, aes(x=Déchets)) 
+g1<-g+geom_bar(aes(y=Poids),fill= "blue",stat="identity") +
+geom_point(aes(y=cumulative), color = rgb(0, 1, 0), pch=16, size=1) +
+geom_path(aes(y=cumulative, group=1), colour="slateblue1", lty=3, size=0.9) +
+theme(axis.text.x = element_text(angle=4, vjust=0.6)) +
+labs(title = "Weekly scrap in Atelier Cabine", subtitle = "RAM", x = 'Déchets', y =
+'Weights in Tonnes')
+ggplotly(g1)
+
+```
+
+### Search for scrap
+
+```{r}
+library(DT)
+datatable(scrap_cabine, options = list(pageLength =5))
+```
+
+Atelier Structure {data-icon="fas fa-search"}
+===========================
+Row
+--------------------------------------
+### Ratio of generated scrap in Atelier Structure compared to the total
+
+```{r}
+scrap_structure<-subset(scrap.ramheb,Zone=="Atelier structure")
+total_structure<-sum(as.numeric(scrap_structure$Poids))
+total<-sum(as.numeric(scrap.ramheb$Poids))+sum(as.numeric(data7$somme))*1/52
+ratio_structure<-total_structure/total
+valueBox(round(ratio_structure,2), icon = "fas fa-plane")
+```
+
+### Percentage of dangerous scrap in Atelier structure
+
+```{r}
+
+Percentage <-(1e-03+1e-04)/total_structure
+valueBox(round(Percentage,2), icon = "fas fa-fire",color="red")
+```
+
+### Total scrap generated in Atelier Structure weekly in Tonnes
+
+```{r}
+valueBox(round(total_structure,2), icon = "fas fa-calculator",color="gray")
+```
+
+
+Row
+--------------------------------------
+### Weekly scrap in Atelier Structure
+
+```{r}
+scrap_structure <- scrap_structure[order(scrap_structure$Poids, decreasing=TRUE), ]
+scrap_structure$cumulative <- cumsum(scrap_structure$Poids)
+scrap_structure$Déchets <- factor(scrap_structure$Déchets, levels=scrap_structure$Déchets)
+g<-ggplot(scrap_structure, aes(x=Déchets)) 
+g1<-g+geom_bar(aes(y=Poids),fill= "blue",stat="identity") +
+geom_point(aes(y=cumulative), color = rgb(0, 1, 0), pch=16, size=1) +
+geom_path(aes(y=cumulative, group=1), colour="slateblue1", lty=3, size=0.9) +
+theme(axis.text.x = element_text(angle=4, vjust=0.6)) +
+labs(title = "Weekly scrap in Atelier Structure", subtitle = "RAM", x = 'Déchets', y =
+'Weights in Tonnes')
+ggplotly(g1)
+
+```
+
+### Search for scrap
+
+```{r}
+library(DT)
+datatable(scrap_structure, options = list(pageLength =5))
+```
+
+Autres {data-icon="fas fa-search"}
+===========================
+
+> Atelier NDT:
+
+The only type of scrap generated in this area is NDT liquid which is considered to be very dangerous.
+
+> Atelier Magasin
+
+ The types of scrap generated in Magasin are considered to be infinitesimal compared to the others.The majority of them are: Grease(D)-Packing(ND)-Coating(D)-Pot de peinture(D).
+
+Forecasts {data-icon="fas fa-chart-line"}
+===========================
+Row 
+-------------
+
+
+### Forecast for the next 70 days using Neural Networks
+
+> Forecast for the next 70 days using Neural Networks
+
+```{r}
+
+
+library(lubridate)
+library(dplyr)
+library(forecast)
+scrap.data<-read.csv("scrap.csv",sep=";")
+
+data3<-scrap.data
+data3$Scrap.Date<-as.Date(data3$Scrap.Date,"%d/%m/%Y")
+
+data4<-data3 %>%
+        group_by(Scrap.Date) %>%
+        summarise(somme=sum(Qty),na.rm=TRUE) %>%
+        select(Scrap.Date,somme)
+
+data5<-data4 %>%
+        complete(Scrap.Date = seq(first(Scrap.Date), last(Scrap.Date),by="day"), 
+                 fill = list(somme = 0)) 
+
+
+library(forecast)
+library(caret)
+dat_ts = ts(data5["somme"])
+fit <- nnetar(dat_ts, lambda=0.5)
+fcast <- forecast(fit, PI=TRUE, h=20)
+autoplot(fcast)
+
+
+
+```
+
+### Predicted values for the upcoming days
+
+```{r}
+library(DT)
+tableau<-data.frame(fcast)
+datatable(tableau, options = list(pageLength =10))
+```
